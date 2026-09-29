@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#f4f4f0">
-<title>Urna — Simulação de Votação v1.2</title>
+<title>Urna — Simulação de Votação v1.3</title>
 <style>
 :root{
   --bg:#eceee9;--panel:#fff;--ink:#1c2520;--muted:#66716a;--line:#d8ddd8;
@@ -29,7 +29,7 @@ h1,h2,h3{margin-top:0}.sub{color:var(--muted);margin-top:-8px}
 .screen .cat{text-transform:uppercase;font-size:13px;font-weight:800;color:#59635d;letter-spacing:1px}
 .screen .prompt{font-size:20px;margin:8px 0 18px}
 .number{display:flex;gap:8px;margin-bottom:20px}.digit{width:48px;height:58px;border:2px solid #333;background:#fff;display:grid;place-items:center;font-size:34px;font-weight:800}
-.candidate{display:flex;gap:16px;align-items:center;border-top:1px solid #bbb;padding-top:16px}
+.candidate{display:flex;gap:16px;align-items:center;border-top:1px solid #bbb;padding-top:16px}.partyBox{display:flex;align-items:center;gap:10px;margin:10px 0;padding:9px 11px;border:1px solid #cbd1cc;background:#fff;border-radius:9px;width:max-content;max-width:100%}.partyLogo{width:42px;height:42px;object-fit:contain;border-radius:7px;background:#fff}.partyLogoSmall{width:28px;height:28px;object-fit:contain;border-radius:5px;vertical-align:middle;margin-right:7px}
 .photo{width:105px;height:125px;border-radius:8px;background:#e5e8e4;object-fit:cover;border:1px solid #cbd1cc}
 .cname{font-size:26px;font-weight:900}.small{font-size:13px;color:var(--muted)}
 .blankMsg,.nullMsg{font-size:30px;font-weight:900;margin-top:45px}.nullMsg{color:#9d2925}.blankMsg{color:#555}
@@ -113,8 +113,16 @@ label{display:block;font-size:12px;font-weight:800;color:#4f5b54;margin:10px 0 5
         <div id="catList" class="list"></div>
       </div>
       <div class="card">
+        <h2>Partidos / Grupos</h2><p class="sub">Cadastre número, sigla, nome e logo.</p>
+        <div class="row"><div><label>Número</label><input id="partyNumber" class="field" inputmode="numeric" placeholder="Ex.: 15"></div><div><label>Sigla</label><input id="partyShort" class="field" placeholder="Ex.: ABC"></div></div>
+        <label>Nome</label><input id="partyName" class="field" placeholder="Nome do partido ou grupo">
+        <label>Logo (opcional)</label><input id="partyLogo" class="field" type="file" accept="image/*">
+        <button class="btn green" id="addParty" style="margin-top:12px">+ Adicionar partido/grupo</button>
+        <div id="partyList" class="list"></div>
+      </div>
+      <div class="card">
         <h2>Candidatos</h2><p class="sub">Cadastre os participantes em cada categoria.</p>
-        <label>Categoria</label><select id="candCat" class="field"></select>
+        <label>Categoria</label><select id="candCat" class="field"></select><label>Partido / Grupo (opcional)</label><select id="candParty" class="field"><option value="">Sem partido/grupo</option></select>
         <div class="row"><div><label>Número</label><input id="candNumber" class="field" inputmode="numeric" placeholder="01"></div><div><label>Nome</label><input id="candName" class="field" placeholder="Nome"></div></div>
         <label>Foto (opcional)</label><input id="candPhoto" class="field" type="file" accept="image/*">
         <button class="btn green" id="addCand" style="margin-top:12px">+ Adicionar candidato</button>
@@ -140,7 +148,7 @@ label{display:block;font-size:12px;font-weight:800;color:#4f5b54;margin:10px 0 5
 
 <script>
 const KEY='urna_sim_v1';
-const defaults={pin:'1234',open:false,sound:true,categories:[],candidates:[],votes:[]};
+const defaults={pin:'1234',open:false,sound:true,categories:[],parties:[],candidates:[],votes:[]};
 let db=load(), admin=false, session={idx:0,input:'',blank:false}, resultsRevealed=false, counting=false, revealIndex=-1;
 
 function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch(e){return structuredClone(defaults)}}
@@ -174,6 +182,7 @@ function confirmSound(){playConfirmAudio()}
 function finishSound(){tone(520,.08,0,.05);tone(660,.08,.09,.05);tone(820,.08,.18,.05);tone(1040,.16,.27,.06)}
 
 function currentCat(){return cats()[session.idx]}
+function matchedParty(){if(!session.input)return null;return db.parties.find(p=>p.number===session.input)||db.parties.find(p=>session.input.startsWith(p.number))||null}
 function currentCandidate(){
  const c=currentCat(); if(!c||session.blank||session.input.length!==+c.digits)return null;
  return db.candidates.find(x=>x.categoryId===c.id && x.number===session.input);
@@ -192,12 +201,13 @@ function renderVote(){
  if(!cats().length){s.innerHTML='<div class="empty"><h2>Nenhuma categoria cadastrada</h2></div>';return}
  if(session.idx>=cats().length){s.innerHTML='<div class="empty"><h1>FIM</h1><p>Seu voto foi registrado.</p><button class="btn green" onclick="newVoter()">Próximo eleitor</button></div>';return}
  let digits='';for(let i=0;i<+c.digits;i++)digits+=`<div class="digit">${esc(session.input[i]||'')}</div>`;
- const cand=currentCandidate();
+ const cand=currentCandidate(),party=matchedParty();
+ const partyCard=p=>p?`<div class="partyBox">${p.logo?`<img class="partyLogo" src="${p.logo}" alt="">`:''}<div><div class="small">PARTIDO / GRUPO</div><b>${esc(p.short||p.name)}</b>${p.short&&p.name?` · ${esc(p.name)}`:''}<div class="small">Número ${esc(p.number)}</div></div></div>`:'';
  let detail='';
  if(session.blank) detail='<div class="blankMsg">VOTO EM BRANCO</div>';
- else if(session.input.length===+c.digits && !cand) detail='<div class="nullMsg">NÚMERO NÃO CADASTRADO</div><div class="small">Ao confirmar, o voto será registrado como nulo.</div>';
- else if(cand) detail=`<div class="candidate">${cand.photo?`<img class="photo" src="${cand.photo}">`:`<div class="photo"></div>`}<div><div class="small">CANDIDATO</div><div class="cname">${esc(cand.name)}</div><div>Número: <b>${esc(cand.number)}</b></div></div></div>`;
- else detail='<div class="small">Digite o número do candidato.</div>';
+ else if(session.input.length===+c.digits && !cand) detail=partyCard(party)+'<div class="nullMsg">NÚMERO NÃO CADASTRADO</div><div class="small">Ao confirmar, o voto será registrado como nulo.</div>';
+ else if(cand){const cp=db.parties.find(p=>p.id===cand.partyId)||party;detail=partyCard(cp)+`<div class="candidate">${cand.photo?`<img class="photo" src="${cand.photo}">`:`<div class="photo"></div>`}<div><div class="small">CANDIDATO</div><div class="cname">${esc(cand.name)}</div><div>Número: <b>${esc(cand.number)}</b></div></div></div>`}
+ else detail=partyCard(party)+'<div class="small">Digite o número do candidato.</div>';
  s.innerHTML=`<div class="cat">${esc(c.name)}</div><div class="prompt">Digite o número:</div><div class="number">${digits}</div>${detail}<div class="small" style="position:absolute;bottom:12px">Categoria ${session.idx+1} de ${cats().length}</div>`;
 }
 document.querySelectorAll('.key').forEach(k=>k.onclick=()=>{
@@ -228,7 +238,9 @@ function renderAdmin(){
  document.getElementById('toggleElection').className='btn '+(db.open?'red':'green');
  const cl=document.getElementById('catList');
  cl.innerHTML=cats().length?cats().map(c=>`<div class="item"><div><b>${esc(c.name)}</b><div class="small">${c.digits} dígito(s) · ordem ${c.order}</div></div><div class="item-actions"><button class="mini" onclick="delCat('${c.id}')">✕</button></div></div>`).join(''):'<div class="empty">Nenhuma categoria.</div>';
+ const pl=document.getElementById('partyList');pl.innerHTML=db.parties.length?db.parties.map(p=>`<div class="item"><div class="item-main">${p.logo?`<img class="avatar" src="${p.logo}">`:''}<div><b>${esc(p.number)} — ${esc(p.short||p.name)}</b><div class="small">${esc(p.name)}</div></div></div><button class="mini" onclick="delParty('${p.id}')">✕</button></div>`).join(''):'<div class="empty">Nenhum partido/grupo.</div>';
  const sel=document.getElementById('candCat');sel.innerHTML=cats().map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+ const ps=document.getElementById('candParty');ps.innerHTML='<option value="">Sem partido/grupo</option>'+db.parties.map(p=>`<option value="${p.id}">${esc(p.number)} — ${esc(p.short||p.name)}</option>`).join('');
  const cand=document.getElementById('candList');
  cand.innerHTML=db.candidates.length?cats().map(c=>{
   const cc=db.candidates.filter(x=>x.categoryId===c.id);
@@ -242,13 +254,15 @@ document.getElementById('addCat').onclick=()=>{
 };
 window.delCat=(cid)=>{if(db.open)return alert('Encerre a votação antes de alterar categorias.');if(confirm('Excluir categoria e seus candidatos?')){db.categories=db.categories.filter(x=>x.id!==cid);db.candidates=db.candidates.filter(x=>x.categoryId!==cid);save();renderAdmin()}};
 window.delCand=(cid)=>{if(db.open)return alert('Encerre a votação antes de alterar candidatos.');if(confirm('Excluir candidato?')){db.candidates=db.candidates.filter(x=>x.id!==cid);save();renderAdmin()}};
+document.getElementById('addParty').onclick=async()=>{if(db.open)return alert('Encerre a votação antes de alterar partidos/grupos.');const number=document.getElementById('partyNumber').value.trim(),short=document.getElementById('partyShort').value.trim(),name=document.getElementById('partyName').value.trim();if(!number||!name)return alert('Informe número e nome.');if(!/^\d+$/.test(number))return alert('O número deve conter apenas dígitos.');if(db.parties.some(p=>p.number===number))return alert('Número já cadastrado.');let logo='';const f=document.getElementById('partyLogo').files[0];if(f)logo=await fileToData(f);db.parties.push({id:id(),number,short,name,logo});save();document.getElementById('partyNumber').value='';document.getElementById('partyShort').value='';document.getElementById('partyName').value='';document.getElementById('partyLogo').value='';renderAdmin()};
+window.delParty=pid=>{if(db.open)return alert('Encerre a votação antes de alterar partidos/grupos.');if(db.candidates.some(c=>c.partyId===pid))return alert('Este partido/grupo está vinculado a candidato(s).');if(confirm('Excluir partido/grupo?')){db.parties=db.parties.filter(p=>p.id!==pid);save();renderAdmin()}};
 document.getElementById('addCand').onclick=async()=>{
  const categoryId=document.getElementById('candCat').value,name=document.getElementById('candName').value.trim(),number=document.getElementById('candNumber').value.trim();
  const c=db.categories.find(x=>x.id===categoryId);if(!c)return alert('Crie uma categoria primeiro.');if(!name||!number)return alert('Informe número e nome.');
  if(!/^\d+$/.test(number)||number.length!==+c.digits)return alert(`O número deve ter exatamente ${c.digits} dígito(s).`);
  if(db.candidates.some(x=>x.categoryId===categoryId&&x.number===number))return alert('Esse número já está em uso nesta categoria.');
  let photo='';const f=document.getElementById('candPhoto').files[0];if(f)photo=await fileToData(f);
- db.candidates.push({id:id(),categoryId,name,number,photo});save();
+ const partyId=document.getElementById('candParty').value||null;db.candidates.push({id:id(),categoryId,partyId,name,number,photo});save();
  document.getElementById('candName').value='';document.getElementById('candNumber').value='';document.getElementById('candPhoto').value='';renderAdmin();
 };
 function fileToData(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
@@ -262,7 +276,7 @@ document.getElementById('resetVotes').onclick=()=>{if(confirm('Apagar TODOS os v
 document.getElementById('exportBtn').onclick=()=>{
  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='urna-backup.json';a.click();URL.revokeObjectURL(a.href)
 };
-document.getElementById('importFile').onchange=async e=>{try{const d=JSON.parse(await e.target.files[0].text());if(!Array.isArray(d.categories)||!Array.isArray(d.candidates)||!Array.isArray(d.votes))throw 0;db={...defaults,...d};save();renderAdmin();renderVote();alert('Backup importado.')}catch{alert('Arquivo de backup inválido.')}e.target.value=''};
+document.getElementById('importFile').onchange=async e=>{try{const d=JSON.parse(await e.target.files[0].text());if(!Array.isArray(d.categories)||!Array.isArray(d.candidates)||!Array.isArray(d.votes))throw 0;db={...defaults,...d,parties:Array.isArray(d.parties)?d.parties:[]};save();renderAdmin();renderVote();alert('Backup importado.')}catch{alert('Arquivo de backup inválido.')}e.target.value=''};
 
 function resultMarkup(){
  const total=db.votes.length, valid=db.votes.filter(v=>v.type==='valid').length, blanks=db.votes.filter(v=>v.type==='blank').length, nulls=db.votes.filter(v=>v.type==='null').length;
@@ -271,7 +285,7 @@ function resultMarkup(){
    const vv=db.votes.filter(v=>v.categoryId===c.id), vc=vv.filter(v=>v.type==='valid').length;
    html+=`<div class="result-card"><h3>${esc(c.name)}</h3><div class="small">${vv.length} voto(s) nesta categoria · ${vv.filter(v=>v.type==='blank').length} branco(s) · ${vv.filter(v=>v.type==='null').length} nulo(s)</div>`;
    const arr=db.candidates.filter(x=>x.categoryId===c.id).map(x=>({...x,n:vv.filter(v=>v.candidateId===x.id).length})).sort((a,b)=>b.n-a.n);
-   for(const x of arr){const pct=vc?x.n/vc*100:0;html+=`<div class="barrow"><div><b>${esc(x.number)}</b> ${esc(x.name)}</div><div class="bar"><div class="fill" style="width:${pct}%"></div></div><div class="right">${x.n} <span class="small">${pct.toFixed(1)}%</span></div></div>`}
+   for(const x of arr){const pct=vc?x.n/vc*100:0;html+=`<div class="barrow"><div><b>${esc(x.number)}</b> ${esc(x.name)}${x.partyId&&db.parties.find(p=>p.id===x.partyId)?`<div class="small">${db.parties.find(p=>p.id===x.partyId).logo?`<img class="partyLogoSmall" src="${db.parties.find(p=>p.id===x.partyId).logo}" alt="">`:''}${esc(db.parties.find(p=>p.id===x.partyId).short||db.parties.find(p=>p.id===x.partyId).name)}</div>`:''}</div><div class="bar"><div class="fill" style="width:${pct}%"></div></div><div class="right">${x.n} <span class="small">${pct.toFixed(1)}%</span></div></div>`}
    html+='</div>';
  }
  return html+'</div>';
@@ -286,7 +300,7 @@ function categoryResultMarkup(c){
  <div class="small">${vv.length} voto(s) · ${vv.filter(v=>v.type==='blank').length} branco(s) · ${vv.filter(v=>v.type==='null').length} nulo(s)</div>`;
  for(const x of arr){
    const pct=vc?x.n/vc*100:0;
-   html+=`<div class="barrow"><div><b>${esc(x.number)}</b> ${esc(x.name)}</div><div class="bar"><div class="fill" style="width:${pct}%"></div></div><div class="right">${x.n} <span class="small">${pct.toFixed(1)}%</span></div></div>`;
+   html+=`<div class="barrow"><div><b>${esc(x.number)}</b> ${esc(x.name)}${x.partyId&&db.parties.find(p=>p.id===x.partyId)?`<div class="small">${db.parties.find(p=>p.id===x.partyId).logo?`<img class="partyLogoSmall" src="${db.parties.find(p=>p.id===x.partyId).logo}" alt="">`:''}${esc(db.parties.find(p=>p.id===x.partyId).short||db.parties.find(p=>p.id===x.partyId).name)}</div>`:''}</div><div class="bar"><div class="fill" style="width:${pct}%"></div></div><div class="right">${x.n} <span class="small">${pct.toFixed(1)}%</span></div></div>`;
  }
  return html+'</div>';
 }
