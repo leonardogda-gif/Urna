@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#f4f4f0">
-<title>Urna — Simulação de Votação v1.3</title>
+<title>Urna — Simulação de Votação v1.5</title>
 <style>
 :root{
   --bg:#eceee9;--panel:#fff;--ink:#1c2520;--muted:#66716a;--line:#d8ddd8;
@@ -13,7 +13,7 @@
 }
 *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
 button,input,select{font:inherit} button{cursor:pointer}
-.top{background:#202724;color:#fff;padding:6px 10px;display:flex;align-items:center;justify-content:flex-end;gap:8px;position:sticky;top:0;z-index:10;min-height:38px}
+.top{background:#202724;color:#fff;padding:calc(6px + env(safe-area-inset-top,0px)) 10px 6px;display:flex;align-items:center;justify-content:flex-end;gap:8px;position:sticky;top:0;z-index:10;min-height:38px}
 .top .brand{display:none}
 .brand{font-weight:800;letter-spacing:.2px}.brand small{display:block;color:#b9c3bd;font-weight:500;font-size:11px}
 .nav{display:flex;gap:6px;flex-wrap:wrap}.nav button{border:0;border-radius:9px;padding:7px 9px;background:#39423e;color:#fff;font-size:12px}.nav button.active{background:#fff;color:#202724}
@@ -35,7 +35,7 @@ h1,h2,h3{margin-top:0}.sub{color:var(--muted);margin-top:-8px}
 .blankMsg,.nullMsg{font-size:30px;font-weight:900;margin-top:45px}.nullMsg{color:#9d2925}.blankMsg{color:#555}
 .keypad{background:#242927;border-radius:12px;padding:16px;display:flex;flex-direction:column;justify-content:center}
 .keys{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.key{border:0;background:#0e1110;color:white;border-radius:7px;padding:14px 4px;font-size:22px;font-weight:800;box-shadow:inset 0 -3px rgba(255,255,255,.06)}
-.zero{grid-column:2}.actions{display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:7px;margin-top:14px;align-items:end}.actions button{border:0;border-radius:6px;padding:12px 5px;font-size:11px;font-weight:900;text-transform:uppercase;min-height:48px}.white{background:#eee}.correct{background:#e76d43}.confirm{background:#40a85c;min-height:58px!important}
+.key.pressed,.actions button.pressed{transform:translateY(2px);filter:brightness(1.35)}.zero{grid-column:2}.actions{display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:7px;margin-top:14px;align-items:end}.actions button{border:0;border-radius:6px;padding:12px 5px;font-size:11px;font-weight:900;text-transform:uppercase;min-height:48px}.white{background:#eee}.correct{background:#e76d43}.confirm{background:#40a85c;min-height:58px!important}
 .status{margin-top:14px;text-align:center;font-weight:700}.pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#e7ece8;font-size:12px}.pill.open{background:#dcf3e2;color:#17672e}.pill.closed{background:#f7dddd;color:#8e2925}
 .btn{border:0;border-radius:11px;padding:11px 15px;font-weight:750;background:var(--dark);color:white}.btn.green{background:var(--green)}.btn.red{background:var(--red)}.btn.light{background:#eef1ee;color:#253029;border:1px solid var(--line)}.btn.blue{background:var(--blue)}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:15px}
@@ -91,12 +91,12 @@ label{display:block;font-size:12px;font-weight:800;color:#4f5b54;margin:10px 0 5
     <h2>⚙️ Administração</h2><p class="sub">Digite o PIN para gerenciar esta simulação.</p>
     <label>PIN</label><input id="pinInput" class="field" type="password" inputmode="numeric" placeholder="PIN">
     <button id="loginBtn" class="btn green" style="margin-top:12px;width:100%">Entrar</button>
-    <p class="small">PIN inicial: <b>1234</b>. Altere depois de entrar.</p>
+    <p class="small" id="pinHint">PIN inicial: <b>1234</b>. Altere depois de entrar.</p>
   </div>
   <div id="adminPanel" style="display:none">
     <div class="toolbar">
       <button class="btn green" id="toggleElection"></button>
-      <button class="btn light" id="soundBtn">🔊 Som ligado</button><button class="btn light" id="changePin">Alterar PIN</button>
+      <button class="btn light" id="soundBtn">🔊 Som ligado</button><button class="btn light" id="changePin">Alterar PIN</button><button class="btn light" id="logoutBtn">🔒 Sair</button>
       <button class="btn light" id="exportBtn">Exportar backup</button>
       <label class="btn light" style="margin:0">Importar backup<input id="importFile" type="file" accept=".json" hidden></label>
       <button class="btn red" id="resetVotes">Zerar votos</button>
@@ -109,6 +109,7 @@ label{display:block;font-size:12px;font-weight:800;color:#4f5b54;margin:10px 0 5
           <div><label>Dígitos</label><select id="catDigits" class="field"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></div>
           <div><label>Ordem</label><input id="catOrder" class="field" type="number" value="1" min="1"></div>
         </div>
+        <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin-top:12px"><input type="checkbox" id="catLegenda" style="width:auto;margin:0"> Aceita voto de legenda (número do partido)</label>
         <button class="btn green" id="addCat" style="margin-top:12px">+ Adicionar categoria</button>
         <div id="catList" class="list"></div>
       </div>
@@ -148,11 +149,27 @@ label{display:block;font-size:12px;font-weight:800;color:#4f5b54;margin:10px 0 5
 
 <script>
 const KEY='urna_sim_v1';
-const defaults={pin:'1234',open:false,sound:true,categories:[],parties:[],candidates:[],votes:[]};
-let db=load(), admin=false, session={idx:0,input:'',blank:false}, resultsRevealed=false, counting=false, revealIndex=-1;
+const defaults={pin:'1234',open:false,sound:true,awaitingRelease:false,categories:[],parties:[],candidates:[],votes:[]};
+let db=load(), admin=false, session=newSession(), resultsRevealed=false, counting=false, revealIndex=-1;
 
-function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch(e){return structuredClone(defaults)}}
-function save(){localStorage.setItem(KEY,JSON.stringify(db))}
+function newSession(){return {idx:0,input:'',blank:false,pending:[]}}
+function load(){let d={};try{d=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){}return {...structuredClone(defaults),...d}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(db));return true}catch(e){alert('Não foi possível salvar: o armazenamento do navegador está cheio. Remova fotos/logos ou exporte o backup e zere os dados.');return false}}
+function partyById(pid){return pid?db.parties.find(p=>p.id===pid)||null:null}
+function safeImg(s){return typeof s==='string'&&/^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(s)?s:''}
+function safeId(s){return String(s??'').replace(/[^A-Za-z0-9_-]/g,'')}
+function closeModal(){document.getElementById('modal').classList.remove('show')}
+function askPin(title,msg,onOk){
+ const m=document.getElementById('modal');
+ document.getElementById('modalTitle').textContent=title;
+ document.getElementById('modalBody').innerHTML=`<p class="small">${esc(msg)}</p><input id="modalPin" class="field" type="password" inputmode="numeric" placeholder="PIN"><div id="modalErr" class="small" style="color:var(--red);margin-top:6px"></div>`;
+ m.classList.add('show');
+ const inp=document.getElementById('modalPin');setTimeout(()=>inp.focus(),50);
+ const ok=()=>{if(inp.value===db.pin){closeModal();onOk()}else{document.getElementById('modalErr').textContent='PIN incorreto.';inp.value='';inp.focus()}};
+ document.getElementById('modalOk').onclick=ok;
+ inp.onkeydown=e=>{if(e.key==='Enter')ok()};
+ document.getElementById('modalCancel').onclick=closeModal;
+}
 function cats(){return [...db.categories].sort((a,b)=>a.order-b.order)}
 function id(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
@@ -188,6 +205,7 @@ function currentCandidate(){
  return db.candidates.find(x=>x.categoryId===c.id && x.number===session.input);
 }
 function nav(view){
+ if(view!=='admin'&&admin){admin=false;document.getElementById('pinInput').value=''}
  document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===view));
  document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.view===view));
  if(view==='vote') renderVote(); if(view==='admin')renderAdmin(); if(view==='results')renderResults();
@@ -196,48 +214,61 @@ document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>nav(b.dataset.
 
 function renderVote(){
  const s=document.getElementById('screen'), status=document.getElementById('voteStatus'), c=currentCat();
- status.innerHTML=db.open?'<span class="pill open">● Votação aberta</span>':'<span class="pill closed">● Votação encerrada</span>';
+ status.innerHTML=db.open?'<span class="pill open">● Votação aberta</span> <button class="mini" id="mesarioBtn" style="margin-left:6px">🔑 Mesário</button>':'<span class="pill closed">● Votação encerrada</span>';
+ const mb=document.getElementById('mesarioBtn');
+ if(mb)mb.onclick=()=>askPin('Liberar próximo eleitor','Digite o PIN para liberar a urna. Se houver uma cédula em andamento, ela será descartada.',()=>{db.awaitingRelease=false;save();session=newSession();renderVote()});
  if(!db.open){s.innerHTML='<div class="empty"><h2>Votação indisponível</h2><p>A administração ainda não abriu a votação.</p></div>';return}
  if(!cats().length){s.innerHTML='<div class="empty"><h2>Nenhuma categoria cadastrada</h2></div>';return}
- if(session.idx>=cats().length){s.innerHTML='<div class="empty"><h1>FIM</h1><p>Seu voto foi registrado.</p><button class="btn green" onclick="newVoter()">Próximo eleitor</button></div>';return}
+ if(db.awaitingRelease||session.idx>=cats().length){s.innerHTML='<div class="empty"><h1>FIM</h1><p>Seu voto foi registrado.</p><p class="small">Aguardando o mesário liberar o próximo eleitor.</p></div>';return}
  let digits='';for(let i=0;i<+c.digits;i++)digits+=`<div class="digit">${esc(session.input[i]||'')}</div>`;
  const cand=currentCandidate(),party=matchedParty();
  const partyCard=p=>p?`<div class="partyBox">${p.logo?`<img class="partyLogo" src="${p.logo}" alt="">`:''}<div><div class="small">PARTIDO / GRUPO</div><b>${esc(p.short||p.name)}</b>${p.short&&p.name?` · ${esc(p.name)}`:''}<div class="small">Número ${esc(p.number)}</div></div></div>`:'';
  let detail='';
  if(session.blank) detail='<div class="blankMsg">VOTO EM BRANCO</div>';
+ else if(session.input.length===+c.digits && !cand && c.legenda && party) detail=partyCard(party)+'<div class="blankMsg" style="color:var(--blue)">VOTO DE LEGENDA</div><div class="small">Ao confirmar, o voto irá para o partido/grupo.</div>';
  else if(session.input.length===+c.digits && !cand) detail=partyCard(party)+'<div class="nullMsg">NÚMERO NÃO CADASTRADO</div><div class="small">Ao confirmar, o voto será registrado como nulo.</div>';
  else if(cand){const cp=db.parties.find(p=>p.id===cand.partyId)||party;detail=partyCard(cp)+`<div class="candidate">${cand.photo?`<img class="photo" src="${cand.photo}">`:`<div class="photo"></div>`}<div><div class="small">CANDIDATO</div><div class="cname">${esc(cand.name)}</div><div>Número: <b>${esc(cand.number)}</b></div></div></div>`}
  else detail=partyCard(party)+'<div class="small">Digite o número do candidato.</div>';
  s.innerHTML=`<div class="cat">${esc(c.name)}</div><div class="prompt">Digite o número:</div><div class="number">${digits}</div>${detail}<div class="small" style="position:absolute;bottom:12px">Categoria ${session.idx+1} de ${cats().length}</div>`;
 }
 document.querySelectorAll('.key').forEach(k=>k.onclick=()=>{
- if(!db.open||!currentCat()||session.idx>=cats().length)return;
+ if(!db.open||db.awaitingRelease||!currentCat()||session.idx>=cats().length)return;
  const c=currentCat(); if(session.input.length<+c.digits){keySound();session.blank=false;session.input+=k.textContent;renderVote()}
 });
-document.getElementById('blankBtn').onclick=()=>{if(db.open&&currentCat()){keySound();session.input='';session.blank=true;renderVote()}};
-document.getElementById('correctBtn').onclick=()=>{keySound();session.input='';session.blank=false;renderVote()};
+document.getElementById('blankBtn').onclick=()=>{if(db.open&&!db.awaitingRelease&&currentCat()){keySound();session.input='';session.blank=true;renderVote()}};
+document.getElementById('correctBtn').onclick=()=>{if(!db.open||db.awaitingRelease)return;keySound();session.input='';session.blank=false;renderVote()};
 document.getElementById('confirmBtn').onclick=()=>{
- if(!db.open||!currentCat())return;
+ if(!db.open||db.awaitingRelease||!currentCat())return;
  const c=currentCat();
  if(!session.blank && session.input.length!==+c.digits)return alert('Digite o número completo ou escolha BRANCO.');
- const cand=currentCandidate();
- db.votes.push({id:id(),categoryId:c.id,candidateId:cand?.id||null,type:session.blank?'blank':cand?'valid':'null',ts:new Date().toISOString()});
- save();confirmSound();session.idx++;session.input='';session.blank=false;renderVote();
+ const cand=currentCandidate(), party=(!cand&&!session.blank&&c.legenda)?matchedParty():null;
+ session.pending.push({id:id(),categoryId:c.id,candidateId:cand?.id||null,partyId:party?.id||null,type:session.blank?'blank':cand?'valid':party?'party':'null'});
+ session.idx++;session.input='';session.blank=false;
+ if(session.idx>=cats().length && !commitBallot()){session.pending.pop();session.idx--;renderVote();return}
+ confirmSound();renderVote();
 };
-window.newVoter=()=>{session={idx:0,input:'',blank:false};renderVote()};
+// Grava a cédula inteira só no final, em posição aleatória e sem horário (protege o sigilo)
+function commitBallot(){
+ const before=db.votes.slice();
+ for(const v of session.pending)db.votes.splice(Math.floor(Math.random()*(db.votes.length+1)),0,v);
+ db.awaitingRelease=true;
+ if(!save()){db.votes=before;db.awaitingRelease=false;return false}
+ session=newSession();return true;
+}
 
 document.getElementById('loginBtn').onclick=()=>{
- if(document.getElementById('pinInput').value===db.pin){admin=true;renderAdmin()}else alert('PIN incorreto.');
+ if(document.getElementById('pinInput').value===db.pin){admin=true;document.getElementById('pinInput').value='';renderAdmin()}else alert('PIN incorreto.');
 };
 function renderAdmin(){
  document.getElementById('adminLocked').style.display=admin?'none':'block';
  document.getElementById('adminPanel').style.display=admin?'block':'none';
+ document.getElementById('pinHint').style.display=db.pin==='1234'?'block':'none';
  if(!admin)return;
  document.getElementById('toggleElection').textContent=db.open?'⏹ Encerrar votação':'▶ Abrir votação';
  document.getElementById('soundBtn').textContent=db.sound?'🔊 Som ligado':'🔇 Som desligado';
  document.getElementById('toggleElection').className='btn '+(db.open?'red':'green');
  const cl=document.getElementById('catList');
- cl.innerHTML=cats().length?cats().map(c=>`<div class="item"><div><b>${esc(c.name)}</b><div class="small">${c.digits} dígito(s) · ordem ${c.order}</div></div><div class="item-actions"><button class="mini" onclick="delCat('${c.id}')">✕</button></div></div>`).join(''):'<div class="empty">Nenhuma categoria.</div>';
+ cl.innerHTML=cats().length?cats().map(c=>`<div class="item"><div><b>${esc(c.name)}</b><div class="small">${c.digits} dígito(s) · ordem ${c.order}${c.legenda?' · aceita legenda':''}</div></div><div class="item-actions"><button class="mini" onclick="delCat('${c.id}')">✕</button></div></div>`).join(''):'<div class="empty">Nenhuma categoria.</div>';
  const pl=document.getElementById('partyList');pl.innerHTML=db.parties.length?db.parties.map(p=>`<div class="item"><div class="item-main">${p.logo?`<img class="avatar" src="${p.logo}">`:''}<div><b>${esc(p.number)} — ${esc(p.short||p.name)}</b><div class="small">${esc(p.name)}</div></div></div><button class="mini" onclick="delParty('${p.id}')">✕</button></div>`).join(''):'<div class="empty">Nenhum partido/grupo.</div>';
  const sel=document.getElementById('candCat');sel.innerHTML=cats().map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
  const ps=document.getElementById('candParty');ps.innerHTML='<option value="">Sem partido/grupo</option>'+db.parties.map(p=>`<option value="${p.id}">${esc(p.number)} — ${esc(p.short||p.name)}</option>`).join('');
@@ -248,61 +279,72 @@ function renderAdmin(){
  }).join(''):'<div class="empty">Nenhum candidato.</div>';
 }
 document.getElementById('addCat').onclick=()=>{
+ if(db.open)return alert('Encerre a votação antes de alterar categorias.');
  const name=document.getElementById('catName').value.trim();if(!name)return alert('Informe o nome da categoria.');
- db.categories.push({id:id(),name,digits:+document.getElementById('catDigits').value,order:+document.getElementById('catOrder').value||1});
- save();document.getElementById('catName').value='';document.getElementById('catOrder').value=cats().length+1;renderAdmin();renderVote();
+ db.categories.push({id:id(),name,digits:+document.getElementById('catDigits').value,order:+document.getElementById('catOrder').value||1,legenda:document.getElementById('catLegenda').checked});
+ if(!save()){db.categories.pop();return}document.getElementById('catName').value='';document.getElementById('catLegenda').checked=false;document.getElementById('catOrder').value=cats().length+1;renderAdmin();renderVote();
 };
-window.delCat=(cid)=>{if(db.open)return alert('Encerre a votação antes de alterar categorias.');if(confirm('Excluir categoria e seus candidatos?')){db.categories=db.categories.filter(x=>x.id!==cid);db.candidates=db.candidates.filter(x=>x.categoryId!==cid);save();renderAdmin()}};
-window.delCand=(cid)=>{if(db.open)return alert('Encerre a votação antes de alterar candidatos.');if(confirm('Excluir candidato?')){db.candidates=db.candidates.filter(x=>x.id!==cid);save();renderAdmin()}};
-document.getElementById('addParty').onclick=async()=>{if(db.open)return alert('Encerre a votação antes de alterar partidos/grupos.');const number=document.getElementById('partyNumber').value.trim(),short=document.getElementById('partyShort').value.trim(),name=document.getElementById('partyName').value.trim();if(!number||!name)return alert('Informe número e nome.');if(!/^\d+$/.test(number))return alert('O número deve conter apenas dígitos.');if(db.parties.some(p=>p.number===number))return alert('Número já cadastrado.');let logo='';const f=document.getElementById('partyLogo').files[0];if(f)logo=await fileToData(f);db.parties.push({id:id(),number,short,name,logo});save();document.getElementById('partyNumber').value='';document.getElementById('partyShort').value='';document.getElementById('partyName').value='';document.getElementById('partyLogo').value='';renderAdmin()};
-window.delParty=pid=>{if(db.open)return alert('Encerre a votação antes de alterar partidos/grupos.');if(db.candidates.some(c=>c.partyId===pid))return alert('Este partido/grupo está vinculado a candidato(s).');if(confirm('Excluir partido/grupo?')){db.parties=db.parties.filter(p=>p.id!==pid);save();renderAdmin()}};
+window.delCat=(cid)=>{if(db.open)return alert('Encerre a votação antes de alterar categorias.');if(db.votes.some(v=>v.categoryId===cid))return alert('Esta categoria já tem votos. Zere os votos antes de excluí-la.');if(confirm('Excluir categoria e seus candidatos?')){db.categories=db.categories.filter(x=>x.id!==cid);db.candidates=db.candidates.filter(x=>x.categoryId!==cid);save();renderAdmin()}};
+window.delCand=(cid)=>{if(db.open)return alert('Encerre a votação antes de alterar candidatos.');if(db.votes.some(v=>v.candidateId===cid))return alert('Este candidato já tem votos. Zere os votos antes de excluí-lo.');if(confirm('Excluir candidato?')){db.candidates=db.candidates.filter(x=>x.id!==cid);save();renderAdmin()}};
+document.getElementById('addParty').onclick=async()=>{if(db.open)return alert('Encerre a votação antes de alterar partidos/grupos.');const number=document.getElementById('partyNumber').value.trim(),short=document.getElementById('partyShort').value.trim(),name=document.getElementById('partyName').value.trim();if(!number||!name)return alert('Informe número e nome.');if(!/^\d+$/.test(number))return alert('O número deve conter apenas dígitos.');if(db.parties.some(p=>p.number===number))return alert('Número já cadastrado.');let logo='';const f=document.getElementById('partyLogo').files[0];if(f)logo=await fileToData(f,160);db.parties.push({id:id(),number,short,name,logo});if(!save()){db.parties.pop();return}document.getElementById('partyNumber').value='';document.getElementById('partyShort').value='';document.getElementById('partyName').value='';document.getElementById('partyLogo').value='';renderAdmin()};
+window.delParty=pid=>{if(db.open)return alert('Encerre a votação antes de alterar partidos/grupos.');if(db.candidates.some(c=>c.partyId===pid))return alert('Este partido/grupo está vinculado a candidato(s).');if(db.votes.some(v=>v.partyId===pid))return alert('Este partido/grupo já tem votos de legenda. Zere os votos antes de excluí-lo.');if(confirm('Excluir partido/grupo?')){db.parties=db.parties.filter(p=>p.id!==pid);save();renderAdmin()}};
 document.getElementById('addCand').onclick=async()=>{
+ if(db.open)return alert('Encerre a votação antes de alterar candidatos.');
  const categoryId=document.getElementById('candCat').value,name=document.getElementById('candName').value.trim(),number=document.getElementById('candNumber').value.trim();
  const c=db.categories.find(x=>x.id===categoryId);if(!c)return alert('Crie uma categoria primeiro.');if(!name||!number)return alert('Informe número e nome.');
  if(!/^\d+$/.test(number)||number.length!==+c.digits)return alert(`O número deve ter exatamente ${c.digits} dígito(s).`);
  if(db.candidates.some(x=>x.categoryId===categoryId&&x.number===number))return alert('Esse número já está em uso nesta categoria.');
- let photo='';const f=document.getElementById('candPhoto').files[0];if(f)photo=await fileToData(f);
- const partyId=document.getElementById('candParty').value||null;db.candidates.push({id:id(),categoryId,partyId,name,number,photo});save();
+ let photo='';const f=document.getElementById('candPhoto').files[0];if(f)photo=await fileToData(f,320);
+ const partyId=document.getElementById('candParty').value||null;db.candidates.push({id:id(),categoryId,partyId,name,number,photo});if(!save()){db.candidates.pop();return}
  document.getElementById('candName').value='';document.getElementById('candNumber').value='';document.getElementById('candPhoto').value='';renderAdmin();
 };
-function fileToData(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
+// Reduz a imagem antes de salvar (evita estourar o limite do navegador)
+function fileToData(f,max=320){return new Promise(res=>{
+ const r=new FileReader();r.onerror=()=>{alert('Não foi possível ler a imagem.');res('')};
+ r.onload=()=>{const img=new Image();img.onerror=()=>{alert('Formato de imagem não suportado.');res('')};
+  img.onload=()=>{const k=Math.min(1,max/Math.max(img.width,img.height)),cv=document.createElement('canvas');
+   cv.width=Math.max(1,Math.round(img.width*k));cv.height=Math.max(1,Math.round(img.height*k));
+   cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+   res(/png|gif|svg/.test(f.type)?cv.toDataURL('image/png'):cv.toDataURL('image/jpeg',.82))};
+  img.src=r.result};
+ r.readAsDataURL(f)})}
 document.getElementById('toggleElection').onclick=()=>{
  if(!admin)return;if(!db.open && (!db.categories.length||!db.candidates.length))return alert('Cadastre categorias e candidatos primeiro.');
- db.open=!db.open;resultsRevealed=false;counting=false;revealIndex=-1;save();session={idx:0,input:'',blank:false};renderAdmin();renderVote();renderResults();
+ db.open=!db.open;db.awaitingRelease=false;resultsRevealed=false;counting=false;revealIndex=-1;save();session=newSession();renderAdmin();renderVote();renderResults();
 };
 document.getElementById('soundBtn').onclick=()=>{db.sound=!db.sound;save();renderAdmin();if(db.sound)keySound()};
 document.getElementById('changePin').onclick=()=>{const p=prompt('Novo PIN (mínimo 4 caracteres):');if(p&&p.length>=4){db.pin=p;save();alert('PIN alterado.')}};
-document.getElementById('resetVotes').onclick=()=>{if(confirm('Apagar TODOS os votos? Esta ação não pode ser desfeita.')){db.votes=[];resultsRevealed=false;counting=false;revealIndex=-1;save();renderResults();alert('Votos zerados.')}};
+document.getElementById('resetVotes').onclick=()=>{if(confirm('Apagar TODOS os votos? Esta ação não pode ser desfeita.')){db.votes=[];db.awaitingRelease=false;session=newSession();resultsRevealed=false;counting=false;revealIndex=-1;save();renderResults();alert('Votos zerados.')}};
+document.getElementById('logoutBtn').onclick=()=>{admin=false;nav('vote')};
 document.getElementById('exportBtn').onclick=()=>{
  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='urna-backup.json';a.click();URL.revokeObjectURL(a.href)
 };
-document.getElementById('importFile').onchange=async e=>{try{const d=JSON.parse(await e.target.files[0].text());if(!Array.isArray(d.categories)||!Array.isArray(d.candidates)||!Array.isArray(d.votes))throw 0;db={...defaults,...d,parties:Array.isArray(d.parties)?d.parties:[]};save();renderAdmin();renderVote();alert('Backup importado.')}catch{alert('Arquivo de backup inválido.')}e.target.value=''};
+document.getElementById('importFile').onchange=async e=>{if(db.open){e.target.value='';return alert('Encerre a votação antes de importar um backup.')}try{const d=JSON.parse(await e.target.files[0].text());if(!Array.isArray(d.categories)||!Array.isArray(d.candidates)||!Array.isArray(d.votes))throw 0;
+ const categories=d.categories.map(c=>({id:safeId(c.id),name:String(c.name||''),digits:Math.min(4,Math.max(1,+c.digits||2)),order:+c.order||1,legenda:!!c.legenda}));
+ const parties=(Array.isArray(d.parties)?d.parties:[]).map(p=>({id:safeId(p.id),number:String(p.number||'').replace(/\D/g,''),short:String(p.short||''),name:String(p.name||''),logo:safeImg(p.logo)}));
+ const candidates=d.candidates.map(c=>({id:safeId(c.id),categoryId:safeId(c.categoryId),partyId:c.partyId?safeId(c.partyId):null,name:String(c.name||''),number:String(c.number||'').replace(/\D/g,''),photo:safeImg(c.photo)}));
+ const votes=d.votes.map(v=>({id:safeId(v.id),categoryId:safeId(v.categoryId),candidateId:v.candidateId?safeId(v.candidateId):null,partyId:v.partyId?safeId(v.partyId):null,type:['valid','blank','null','party'].includes(v.type)?v.type:'null'}));
+ db={...structuredClone(defaults),pin:typeof d.pin==='string'&&d.pin.length>=4?d.pin:db.pin,sound:d.sound!==false,open:false,awaitingRelease:false,categories,parties,candidates,votes};session=newSession();save();renderAdmin();renderVote();alert('Backup importado.')}catch{alert('Arquivo de backup inválido.')}e.target.value=''};
 
+function isValid(v){return v.type==='valid'||v.type==='party'}
+function rowsFor(c,vv){
+ const vc=vv.filter(isValid).length;
+ const rows=db.candidates.filter(x=>x.categoryId===c.id).map(x=>({num:x.number,name:x.name,party:partyById(x.partyId),n:vv.filter(v=>v.candidateId===x.id).length}));
+ for(const p of db.parties){const n=vv.filter(v=>v.type==='party'&&v.partyId===p.id).length;if(n)rows.push({num:p.number,name:'Legenda',party:p,n})}
+ rows.sort((a,b)=>b.n-a.n);
+ return rows.map(x=>{const pct=vc?x.n/vc*100:0,p=x.party;
+  return `<div class="barrow"><div><b>${esc(x.num)}</b> ${esc(x.name)}${p?`<div class="small">${p.logo?`<img class="partyLogoSmall" src="${p.logo}" alt="">`:''}${esc(p.short||p.name)}</div>`:''}</div><div class="bar"><div class="fill" style="width:${pct}%"></div></div><div class="right">${x.n} <span class="small">${pct.toFixed(1)}%</span></div></div>`}).join('');
+}
+function catSummary(vv){const lg=vv.filter(v=>v.type==='party').length;return `${vv.length} voto(s) · ${vv.filter(v=>v.type==='blank').length} branco(s) · ${vv.filter(v=>v.type==='null').length} nulo(s)${lg?` · ${lg} de legenda`:''}`}
 function resultMarkup(){
- const total=db.votes.length, valid=db.votes.filter(v=>v.type==='valid').length, blanks=db.votes.filter(v=>v.type==='blank').length, nulls=db.votes.filter(v=>v.type==='null').length;
+ const total=db.votes.length, valid=db.votes.filter(isValid).length, blanks=db.votes.filter(v=>v.type==='blank').length, nulls=db.votes.filter(v=>v.type==='null').length;
  let html=`<div class="kpis reveal"><div class="kpi"><span>Votos registrados</span><b>${total}</b></div><div class="kpi"><span>Votos válidos</span><b>${valid}</b></div><div class="kpi"><span>Brancos / nulos</span><b>${blanks} / ${nulls}</b></div></div><div class="results reveal">`;
- for(const c of cats()){
-   const vv=db.votes.filter(v=>v.categoryId===c.id), vc=vv.filter(v=>v.type==='valid').length;
-   html+=`<div class="result-card"><h3>${esc(c.name)}</h3><div class="small">${vv.length} voto(s) nesta categoria · ${vv.filter(v=>v.type==='blank').length} branco(s) · ${vv.filter(v=>v.type==='null').length} nulo(s)</div>`;
-   const arr=db.candidates.filter(x=>x.categoryId===c.id).map(x=>({...x,n:vv.filter(v=>v.candidateId===x.id).length})).sort((a,b)=>b.n-a.n);
-   for(const x of arr){const pct=vc?x.n/vc*100:0;html+=`<div class="barrow"><div><b>${esc(x.number)}</b> ${esc(x.name)}${x.partyId&&db.parties.find(p=>p.id===x.partyId)?`<div class="small">${db.parties.find(p=>p.id===x.partyId).logo?`<img class="partyLogoSmall" src="${db.parties.find(p=>p.id===x.partyId).logo}" alt="">`:''}${esc(db.parties.find(p=>p.id===x.partyId).short||db.parties.find(p=>p.id===x.partyId).name)}</div>`:''}</div><div class="bar"><div class="fill" style="width:${pct}%"></div></div><div class="right">${x.n} <span class="small">${pct.toFixed(1)}%</span></div></div>`}
-   html+='</div>';
- }
+ for(const c of cats()){const vv=db.votes.filter(v=>v.categoryId===c.id);html+=`<div class="result-card"><h3>${esc(c.name)}</h3><div class="small">${catSummary(vv)}</div>${rowsFor(c,vv)}</div>`}
  return html+'</div>';
 }
-
 function categoryResultMarkup(c){
- const vv=db.votes.filter(v=>v.categoryId===c.id), vc=vv.filter(v=>v.type==='valid').length;
- const arr=db.candidates.filter(x=>x.categoryId===c.id)
-   .map(x=>({...x,n:vv.filter(v=>v.candidateId===x.id).length}))
-   .sort((a,b)=>b.n-a.n);
- let html=`<div class="result-card reveal"><div class="small">RESULTADO DA CATEGORIA</div><h2 style="font-size:32px;margin:5px 0 14px">${esc(c.name)}</h2>
- <div class="small">${vv.length} voto(s) · ${vv.filter(v=>v.type==='blank').length} branco(s) · ${vv.filter(v=>v.type==='null').length} nulo(s)</div>`;
- for(const x of arr){
-   const pct=vc?x.n/vc*100:0;
-   html+=`<div class="barrow"><div><b>${esc(x.number)}</b> ${esc(x.name)}${x.partyId&&db.parties.find(p=>p.id===x.partyId)?`<div class="small">${db.parties.find(p=>p.id===x.partyId).logo?`<img class="partyLogoSmall" src="${db.parties.find(p=>p.id===x.partyId).logo}" alt="">`:''}${esc(db.parties.find(p=>p.id===x.partyId).short||db.parties.find(p=>p.id===x.partyId).name)}</div>`:''}</div><div class="bar"><div class="fill" style="width:${pct}%"></div></div><div class="right">${x.n} <span class="small">${pct.toFixed(1)}%</span></div></div>`;
- }
- return html+'</div>';
+ const vv=db.votes.filter(v=>v.categoryId===c.id);
+ return `<div class="result-card reveal"><div class="small">RESULTADO DA CATEGORIA</div><h2 style="font-size:32px;margin:5px 0 14px">${esc(c.name)}</h2><div class="small">${catSummary(vv)}</div>${rowsFor(c,vv)}</div>`;
 }
 function renderReveal(){
  const out=document.getElementById('resultsContent'), controls=document.getElementById('countControls'), cs=cats();
@@ -356,6 +398,22 @@ function startCounting(){
    }
  },280);
 }
+// Teclado físico: 0–9 / numérico, Enter = Confirma, Backspace/Delete = Corrige, B = Branco
+document.addEventListener('keydown',e=>{
+ if(e.ctrlKey||e.metaKey||e.altKey||e.repeat)return;
+ if(!document.getElementById('vote').classList.contains('active'))return;
+ if(document.getElementById('modal').classList.contains('show'))return;
+ if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))return;
+ let btn=null;
+ if(/^[0-9]$/.test(e.key))btn=[...document.querySelectorAll('.key')].find(k=>k.textContent===e.key);
+ else if(e.key==='Enter')btn=document.getElementById('confirmBtn');
+ else if(e.key==='Backspace'||e.key==='Delete')btn=document.getElementById('correctBtn');
+ else if(e.key==='b'||e.key==='B')btn=document.getElementById('blankBtn');
+ if(!btn)return;
+ e.preventDefault();
+ btn.classList.add('pressed');setTimeout(()=>btn.classList.remove('pressed'),120);
+ btn.click();
+});
 renderVote();renderResults();
 </script>
 </body>
